@@ -19,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const tabs = [
     { id: 'tester', label: 'Gateway & Sandbox' },
+    { id: 'docs', label: 'Swagger / OpenAPI Docs' },
     { id: 'audit', label: 'Security Audit Logs' },
     { id: 'rbac', label: 'RBAC Policy Matrix' },
     { id: 'service-accounts', label: 'Service Accounts & OIDC' },

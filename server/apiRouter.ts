@@ -1,6 +1,7 @@
 import { Request, Response, Router } from 'express';
 import { auditLogger } from './auditLogger.ts';
-import { GO_CODE_EXPORT, PYTHON_CODE_EXPORT } from './codeExport.ts';
+import { GO_CODE_EXPORT, PYTHON_CODE_EXPORT, DOCKER_CODE_EXPORT } from './codeExport.ts';
+import { generateOpenApiSpec } from './openapiGenerator.ts';
 import { rbacEngine } from './rbacEngine.ts';
 import { staStore } from './staMockStore.ts';
 
@@ -170,3 +171,70 @@ apiRouter.get('/export/python', (req: Request, res: Response) => {
 apiRouter.get('/export/go', (req: Request, res: Response) => {
   return res.json(GO_CODE_EXPORT);
 });
+
+apiRouter.get('/export/docker', (req: Request, res: Response) => {
+  return res.json(DOCKER_CODE_EXPORT);
+});
+
+// OpenAPI 3.0.3 Specification (Dynamic based on current RBAC config)
+apiRouter.get('/openapi.json', (req: Request, res: Response) => {
+  const role = req.query.role as string | undefined;
+  const spec = generateOpenApiSpec(role, req.get('host'));
+  return res.json(spec);
+});
+
+apiRouter.get('/openapi.yaml', (req: Request, res: Response) => {
+  const role = req.query.role as string | undefined;
+  const spec = generateOpenApiSpec(role, req.get('host'));
+  
+  // Clean JSON to YAML serialization
+  const yamlContent = jsonToYaml(spec);
+  res.setHeader('Content-Type', 'text/yaml');
+  res.setHeader('Content-Disposition', 'attachment; filename="thales_sta_proxy_openapi.yaml"');
+  return res.send(yamlContent);
+});
+
+function jsonToYaml(obj: any, indent = 0): string {
+  const pad = '  '.repeat(indent);
+  if (obj === null || obj === undefined) return 'null\n';
+  if (typeof obj === 'boolean' || typeof obj === 'number') return `${obj}\n`;
+  if (typeof obj === 'string') {
+    if (obj.includes('\n')) {
+      const lines = obj.split('\n').map(l => `${pad}  ${l}`).join('\n');
+      return `|\n${lines}\n`;
+    }
+    if (/[:#\[\]{},&*!|>'\"%@`]/.test(obj) || obj === '' || !isNaN(Number(obj))) {
+      return `"${obj.replace(/"/g, '\\"')}"\n`;
+    }
+    return `${obj}\n`;
+  }
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) return '[]\n';
+    let res = '\n';
+    for (const item of obj) {
+      if (typeof item === 'object' && item !== null) {
+        const itemYaml = jsonToYaml(item, indent + 1);
+        const trimmed = itemYaml.trimStart();
+        res += `${pad}- ${trimmed}`;
+      } else {
+        res += `${pad}- ${jsonToYaml(item, 0)}`;
+      }
+    }
+    return res;
+  }
+  if (typeof obj === 'object') {
+    if (Object.keys(obj).length === 0) return '{}\n';
+    let res = indent === 0 ? '' : '\n';
+    for (const [key, val] of Object.entries(obj)) {
+      const keyStr = /^[a-zA-Z0-9_\-\.]+$/.test(key) ? key : `"${key}"`;
+      if (typeof val === 'object' && val !== null) {
+        res += `${pad}${keyStr}:${jsonToYaml(val, indent + 1)}`;
+      } else {
+        res += `${pad}${keyStr}: ${jsonToYaml(val, 0)}`;
+      }
+    }
+    return res;
+  }
+  return String(obj) + '\n';
+}
+

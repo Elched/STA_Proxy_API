@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header.tsx';
 import { ProxyGatewayTester } from './components/ProxyGatewayTester.tsx';
+import { OpenApiDocViewer } from './components/OpenApiDocViewer.tsx';
 import { AuditLogExplorer } from './components/AuditLogExplorer.tsx';
 import { RbacMatrix } from './components/RbacMatrix.tsx';
 import { ServiceAccountsManager } from './components/ServiceAccountsManager.tsx';
@@ -99,6 +100,14 @@ export default function App() {
               <ProxyGatewayTester
                 serviceAccounts={serviceAccounts}
                 onLogGenerated={loadData}
+                onNavigateTab={setActiveTab}
+              />
+            )}
+
+            {activeTab === 'docs' && (
+              <OpenApiDocViewer
+                roles={roles}
+                serviceAccounts={serviceAccounts}
                 onNavigateTab={setActiveTab}
               />
             )}

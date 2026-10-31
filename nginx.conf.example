@@ -1,0 +1,51 @@
+# Nginx Reverse Proxy Configuration for Thales STA Granular Proxy
+# Enforces TLS 1.3 encryption and optional mutual TLS (mTLS) for service accounts
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile      on;
+
+    upstream sta_backend {
+        server sta-api-proxy:3000;
+        keepalive 32;
+    }
+
+    server {
+        listen 443 ssl http2;
+        server_name proxy.sta.enterprise.corp;
+
+        # TLS 1.3 Strict Encryption
+        ssl_certificate     /etc/ssl/certs/fullchain.pem;
+        ssl_certificate_key /etc/ssl/certs/privkey.pem;
+        ssl_protocols       TLSv1.2 TLSv1.3;
+        ssl_ciphers         HIGH:!aNULL:!MD5;
+        ssl_prefer_server_ciphers on;
+
+        # Optional Mutual TLS (mTLS) for Service Accounts:
+        # ssl_client_certificate /etc/ssl/certs/client_ca.pem;
+        # ssl_verify_client optional; # or 'on' for mandatory client certificates
+
+        # Security Headers
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options DENY always;
+
+        location / {
+            proxy_pass http://sta_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header X-Client-Cert-DN $ssl_client_s_dn;
+            proxy_read_timeout 60s;
+        }
+    }
+}

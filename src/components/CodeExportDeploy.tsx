@@ -13,8 +13,9 @@ import {
 } from 'lucide-react';
 
 export const CodeExportDeploy: React.FC = () => {
-  const [selectedLang, setSelectedLang] = useState<'python' | 'go'>('python');
+  const [selectedLang, setSelectedLang] = useState<'docker' | 'python' | 'go'>('docker');
   const [activeFileIndex, setActiveFileIndex] = useState<number>(0);
+  const [dockerFiles, setDockerFiles] = useState<any[]>([]);
   const [pythonFiles, setPythonFiles] = useState<any[]>([]);
   const [goFiles, setGoFiles] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -23,12 +24,15 @@ export const CodeExportDeploy: React.FC = () => {
   useEffect(() => {
     const fetchExports = async () => {
       try {
-        const [pyRes, goRes] = await Promise.all([
+        const [dockerRes, pyRes, goRes] = await Promise.all([
+          fetch('/api/export/docker'),
           fetch('/api/export/python'),
           fetch('/api/export/go'),
         ]);
+        const dockerData = await dockerRes.json();
         const pyData = await pyRes.json();
         const goData = await goRes.json();
+        setDockerFiles(dockerData.files || []);
         setPythonFiles(pyData.files || []);
         setGoFiles(goData.files || []);
       } finally {
@@ -38,7 +42,7 @@ export const CodeExportDeploy: React.FC = () => {
     fetchExports();
   }, []);
 
-  const currentFiles = selectedLang === 'python' ? pythonFiles : goFiles;
+  const currentFiles = selectedLang === 'docker' ? dockerFiles : selectedLang === 'python' ? pythonFiles : goFiles;
   const currentFile = currentFiles[activeFileIndex] || currentFiles[0];
 
   const copyToClipboard = (text: string, key: string) => {
@@ -87,19 +91,32 @@ export const CodeExportDeploy: React.FC = () => {
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors shadow-xs"
             >
               <Download className="w-4 h-4" />
-              <span>Download {selectedLang === 'python' ? 'Python' : 'Go'} Project Files</span>
+              <span>Download {selectedLang === 'docker' ? 'Docker' : selectedLang === 'python' ? 'Python' : 'Go'} Files</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Language Selector & File Tabs */}
+      {/* Language / Packaging Selector & File Tabs */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Code Viewer (8 cols) */}
         <div className="lg:col-span-8 space-y-3">
           <div className="flex items-center justify-between">
-            {/* Language Toggle */}
+            {/* Language / Container Toggle */}
             <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-medium">
+              <button
+                onClick={() => {
+                  setSelectedLang('docker');
+                  setActiveFileIndex(0);
+                }}
+                className={`px-3 py-1 rounded-md transition-colors ${
+                  selectedLang === 'docker'
+                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs font-semibold'
+                    : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                Dockerized (Alternative)
+              </button>
               <button
                 onClick={() => {
                   setSelectedLang('python');
@@ -111,7 +128,7 @@ export const CodeExportDeploy: React.FC = () => {
                     : 'text-slate-600 dark:text-slate-400'
                 }`}
               >
-                Python (FastAPI + Async HTTPX)
+                Python (FastAPI)
               </button>
               <button
                 onClick={() => {
@@ -124,7 +141,7 @@ export const CodeExportDeploy: React.FC = () => {
                     : 'text-slate-600 dark:text-slate-400'
                 }`}
               >
-                Go (Compiled Single Binary)
+                Go (Single Binary)
               </button>
             </div>
 
@@ -181,8 +198,44 @@ export const CodeExportDeploy: React.FC = () => {
           )}
         </div>
 
-        {/* Right Column: TLS & Security Architecture Guide (4 cols) */}
+        {/* Right Column: Installation Guides & TLS Security Guide (4 cols) */}
         <div className="lg:col-span-4 space-y-4">
+          {/* Installation Options Card */}
+          <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3.5 text-xs">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <Server className="w-4 h-4 text-indigo-500" />
+              <span>Installation Options (README.md)</span>
+            </h3>
+
+            {/* Option A: Docker */}
+            <div className="space-y-1.5 p-3 rounded-lg border border-indigo-100 dark:border-indigo-950 bg-indigo-50/40 dark:bg-indigo-950/20">
+              <div className="font-semibold text-indigo-900 dark:text-indigo-200 flex items-center justify-between">
+                <span>Option 1: Dockerized (Alternative)</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold">CONTAINER</span>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                Run isolated with Docker Compose (Node 22 alpine, non-root user, healthcheck):
+              </p>
+              <pre className="p-2 rounded bg-slate-950 text-indigo-300 font-mono text-[10px] overflow-x-auto">
+                docker compose up --build -d
+              </pre>
+            </div>
+
+            {/* Option B: Native */}
+            <div className="space-y-1.5 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+              <div className="font-semibold text-slate-900 dark:text-white flex items-center justify-between">
+                <span>Option 2: Native Bare-Metal</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold">NATIVE</span>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                Run directly on host VM with Node.js 20+ LTS:
+              </p>
+              <pre className="p-2 rounded bg-slate-950 text-slate-300 font-mono text-[10px] overflow-x-auto">
+                npm install && npm start
+              </pre>
+            </div>
+          </div>
+
           <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-4 text-xs">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
               <Shield className="w-4 h-4 text-indigo-500" />

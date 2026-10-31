@@ -735,3 +735,102 @@ require github.com/google/uuid v1.6.0
     }
   ]
 };
+
+export const DOCKER_CODE_EXPORT = {
+  filename: 'sta_proxy_docker.zip',
+  files: [
+    {
+      path: 'Dockerfile',
+      language: 'dockerfile',
+      content: `# Multi-stage production container for Thales STA Granular Proxy
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci || npm install
+COPY . .
+RUN npm run build
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+RUN apk add --no-cache curl
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev || npm install --omit=dev
+RUN npm install -g tsx
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/server.ts ./server.ts
+COPY --from=builder /app/server ./server
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/metadata.json ./metadata.json
+RUN mkdir -p /etc/ssl/certs && chown -R node:node /app /etc/ssl/certs
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \\
+  CMD curl -f http://localhost:3000/api/stats || exit 1
+CMD ["tsx", "server.ts"]
+`
+    },
+    {
+      path: 'docker-compose.yml',
+      language: 'yaml',
+      content: `version: '3.8'
+
+services:
+  sta-api-proxy:
+    build: .
+    container_name: thales-sta-proxy
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - STA_BASE_URL=https://api.safenetid.com
+      - STA_TENANT_ID=STA-ENTERPRISE-TENANT-EU
+      - STA_MASTER_API_KEY=YOUR_STA_MASTER_SECRET_KEY
+      - OIDC_ISSUER=https://auth.enterprise-corp.com/oauth2/v1
+      - OIDC_AUDIENCE=https://api-proxy.enterprise-corp.com/sta
+    volumes:
+      - ./certs:/etc/ssl/certs:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/stats"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+`
+    },
+    {
+      path: 'nginx.conf.example',
+      language: 'nginx',
+      content: `events { worker_connections 1024; }
+http {
+    upstream sta_backend { server sta-api-proxy:3000; }
+    server {
+        listen 443 ssl http2;
+        server_name proxy.sta.enterprise.corp;
+        ssl_certificate     /etc/ssl/certs/fullchain.pem;
+        ssl_certificate_key /etc/ssl/certs/privkey.pem;
+        ssl_protocols       TLSv1.2 TLSv1.3;
+        location / {
+            proxy_pass http://sta_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+    }
+}
+`
+    },
+    {
+      path: '.dockerignore',
+      language: 'text',
+      content: `node_modules\ndist\n.git\n.env\ncerts/*.key\n`
+    }
+  ]
+};

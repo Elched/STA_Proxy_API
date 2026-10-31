@@ -1,0 +1,65 @@
+version: '3.8'
+
+# ==============================================================================
+# Thales SafeNet Trusted Access (STA) Granular API Proxy
+# Production Docker Compose Deployment
+# ==============================================================================
+
+services:
+  sta-api-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: thales-sta-proxy
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      # Upstream Thales STA Configuration
+      - STA_BASE_URL=https://api.safenetid.com
+      - STA_TENANT_ID=STA-ENTERPRISE-TENANT-EU
+      - STA_MASTER_API_KEY=sta_master_secret_live_992184a7c134bf
+      # OpenID Connect Configuration
+      - OIDC_ISSUER=https://auth.enterprise-corp.com/oauth2/v1
+      - OIDC_AUDIENCE=https://api-proxy.enterprise-corp.com/sta
+      - OIDC_ROLE_CLAIM=roles
+    volumes:
+      # Optional: Mount TLS certificates for HTTPS termination
+      - ./certs:/etc/ssl/certs:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/stats"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - sta-network
+
+  # ----------------------------------------------------------------------------
+  # Optional: Nginx TLS 1.3 Reverse Proxy with Client Certificate (mTLS) Support
+  # Uncomment below to terminate HTTPS and enforce TLS on port 443 / 8443
+  # ----------------------------------------------------------------------------
+  # nginx-tls-proxy:
+  #   image: nginx:alpine
+  #   container_name: thales-sta-proxy-tls
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./certs:/etc/ssl/certs:ro
+  #   depends_on:
+  #     - sta-api-proxy
+  #   networks:
+  #     - sta-network
+
+networks:
+  sta-network:
+    driver: bridge
