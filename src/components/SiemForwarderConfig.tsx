@@ -25,6 +25,7 @@ interface SiemConfig {
   format: 'RFC_5424' | 'RFC_3164' | 'CEF' | 'JSON';
   facility: number;
   appName: string;
+  tlsVerify?: boolean;
   hecToken?: string;
   webhookUrl?: string;
 }
@@ -40,6 +41,7 @@ interface SiemStatus {
   lastSentAt: string | null;
   lastError: string | null;
   lastPayloadSample: string | null;
+  tlsVerify?: boolean;
 }
 
 export const SiemForwarderConfigView: React.FC = () => {
@@ -51,6 +53,7 @@ export const SiemForwarderConfigView: React.FC = () => {
     format: 'RFC_5424',
     facility: 4,
     appName: 'sta-api-proxy',
+    tlsVerify: true,
     hecToken: '',
     webhookUrl: '',
   });
@@ -277,6 +280,29 @@ export const SiemForwarderConfigView: React.FC = () => {
                 />
               </div>
             </div>
+
+            {/* TLS Certificate Verification (when TLS is selected) */}
+            {config.protocol === 'TLS' && (
+              <div className="p-3 rounded-lg border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/20">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={config.tlsVerify !== false}
+                    onChange={e => setConfig({ ...config, tlsVerify: e.target.checked })}
+                    className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      Strict TLS Certificate Validation (Zero-Trust Standard)
+                    </span>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                      Enforces valid X.509 certificate trust chain to prevent Man-in-the-Middle (MITM) attacks. Uncheck only in testing environments with self-signed test certs.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            )}
 
             {/* Splunk HEC Token (if HEC selected) */}
             {config.protocol === 'SPLUNK_HEC' && (

@@ -16,11 +16,11 @@ async function startServer() {
   // Request JSON body parsing with strict size limit to prevent payload flooding DoS
   app.use(express.json({ limit: '2mb' }));
 
-  // Security Headers Middleware
+  // Security Headers Middleware (Modern 2026 Standards: no deprecated X-XSS-Protection)
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();
   });
@@ -29,12 +29,58 @@ async function startServer() {
   app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-Key, X-Correlation-ID');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-Key, X-Correlation-ID, X-STA-Proxy-Key');
     if (req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
     next();
   });
+
+  // In-memory sliding-window rate limiter for brute-force & denial-of-service defense
+  const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+  const RATE_LIMIT_MAX = 300; // max requests per window
+  const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute window
+
+  // Clean stale rate limit entries every 5 minutes
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of rateLimitMap.entries()) {
+      if (entry.resetAt < now) rateLimitMap.delete(ip);
+    }
+  }, 5 * 60 * 1000);
+
+  const rateLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const now = Date.now();
+    let record = rateLimitMap.get(clientIp);
+
+    if (!record || record.resetAt < now) {
+      record = { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS };
+      rateLimitMap.set(clientIp, record);
+    } else {
+      record.count++;
+    }
+
+    const remaining = Math.max(0, RATE_LIMIT_MAX - record.count);
+    const resetSec = Math.ceil((record.resetAt - now) / 1000);
+
+    res.setHeader('RateLimit-Limit', RATE_LIMIT_MAX.toString());
+    res.setHeader('RateLimit-Remaining', remaining.toString());
+    res.setHeader('RateLimit-Reset', resetSec.toString());
+
+    if (record.count > RATE_LIMIT_MAX) {
+      return res.status(429).json({
+        error: 'Too Many Requests',
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: 'Too many requests from this IP address, please try again later.',
+        retryAfterSeconds: resetSec,
+      });
+    }
+
+    next();
+  };
+
+  app.use('/proxy', rateLimiter);
 
   // Mount API Proxy Engine (all calls to /proxy/*)
   app.use('/proxy', proxyRouter);

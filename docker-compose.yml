@@ -1,8 +1,6 @@
-version: '3.8'
-
 # ==============================================================================
 # Thales SafeNet Trusted Access (STA) Granular API Proxy
-# Production Docker Compose Deployment
+# Production Docker Compose Deployment (Compose Spec v2 / 2026 Standard)
 # ==============================================================================
 
 services:

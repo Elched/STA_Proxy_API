@@ -14,6 +14,7 @@ export interface SiemConfig {
   format: SiemFormat;
   facility: number; // 4 = authpriv, 16 = local0
   appName: string;
+  tlsVerify?: boolean; // Default true (zero-trust certificate validation)
   hecToken?: string; // For Splunk HEC
   webhookUrl?: string; // For HTTP Webhook
   customHeaders?: Record<string, string>;
@@ -30,6 +31,7 @@ export interface SiemStatus {
   lastSentAt: string | null;
   lastError: string | null;
   lastPayloadSample: string | null;
+  tlsVerify?: boolean;
 }
 
 class SiemForwarder {
@@ -41,6 +43,7 @@ class SiemForwarder {
     format: (process.env.SIEM_FORMAT as SiemFormat) || 'RFC_5424',
     facility: 4, // authpriv
     appName: 'sta-api-proxy',
+    tlsVerify: process.env.SIEM_TLS_VERIFY !== 'false',
     hecToken: process.env.SIEM_HEC_TOKEN || '',
     webhookUrl: process.env.SIEM_WEBHOOK_URL || '',
   };
@@ -90,6 +93,7 @@ class SiemForwarder {
       lastSentAt: this.lastSentAt,
       lastError: this.lastError,
       lastPayloadSample: this.lastPayloadSample,
+      tlsVerify: this.config.tlsVerify !== false,
     };
   }
 
@@ -220,7 +224,7 @@ class SiemForwarder {
       };
 
       const socket = useTls
-        ? tls.connect({ ...options, rejectUnauthorized: false })
+        ? tls.connect({ ...options, rejectUnauthorized: this.config.tlsVerify !== false })
         : net.connect(options);
 
       socket.setTimeout(5000);
@@ -265,6 +269,7 @@ class SiemForwarder {
       method: 'POST',
       headers,
       body: JSON.stringify(hecPayload),
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!res.ok) {
@@ -284,6 +289,7 @@ class SiemForwarder {
       method: 'POST',
       headers,
       body: payload,
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!res.ok) {

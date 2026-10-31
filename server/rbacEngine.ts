@@ -17,15 +17,15 @@ class RbacEngine {
   };
 
   /**
-   * Constant-time comparison to protect against timing attacks on API keys
+   * Constant-time comparison to protect against timing attacks on API keys.
+   * Hashes both inputs with SHA-256 first so both buffers are guaranteed to be
+   * exactly 32 bytes, completely eliminating length-based timing side channels.
    */
   private timingSafeMatch(candidate: string, actual: string): boolean {
-    const bufA = Buffer.from(candidate);
-    const bufB = Buffer.from(actual);
-    if (bufA.length !== bufB.length) {
-      return false;
-    }
-    return crypto.timingSafeEqual(bufA, bufB);
+    if (!candidate || !actual) return false;
+    const hashA = crypto.createHash('sha256').update(candidate, 'utf8').digest();
+    const hashB = crypto.createHash('sha256').update(actual, 'utf8').digest();
+    return crypto.timingSafeEqual(hashA, hashB);
   }
 
   /**

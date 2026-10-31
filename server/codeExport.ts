@@ -432,13 +432,13 @@ cryptography==43.0.1
     {
       path: 'Dockerfile',
       language: 'dockerfile',
-      content: `FROM python:3.11-slim as builder
+      content: `FROM python:3.12-slim as builder
 
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-FROM python:3.11-slim
+FROM python:3.12-slim
 WORKDIR /app
 COPY --from=builder /root/.local /root/.local
 COPY main.py .
@@ -456,8 +456,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8443", "--ssl-keyfil
     {
       path: 'docker-compose.yml',
       language: 'yaml',
-      content: `version: '3.8'
-
+      content: `# Compose Spec v2 (2026 Standard)
 services:
   sta-api-proxy:
     build: .
@@ -774,8 +773,7 @@ CMD ["tsx", "server.ts"]
     {
       path: 'docker-compose.yml',
       language: 'yaml',
-      content: `version: '3.8'
-
+      content: `# Compose Spec v2 (2026 Standard)
 services:
   sta-api-proxy:
     build: .
@@ -812,7 +810,8 @@ services:
 http {
     upstream sta_backend { server sta-api-proxy:3000; }
     server {
-        listen 443 ssl http2;
+        listen 443 ssl;
+        http2 on;
         server_name proxy.sta.enterprise.corp;
         ssl_certificate     /etc/ssl/certs/fullchain.pem;
         ssl_certificate_key /etc/ssl/certs/privkey.pem;
