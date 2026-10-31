@@ -3,6 +3,7 @@ import { auditLogger } from './auditLogger.ts';
 import { GO_CODE_EXPORT, PYTHON_CODE_EXPORT, DOCKER_CODE_EXPORT } from './codeExport.ts';
 import { generateOpenApiSpec } from './openapiGenerator.ts';
 import { rbacEngine } from './rbacEngine.ts';
+import { siemForwarder } from './siemForwarder.ts';
 import { staStore } from './staMockStore.ts';
 
 export const apiRouter = Router();
@@ -19,6 +20,7 @@ apiRouter.get('/stats', (req: Request, res: Response) => {
     mockLockedCount: tenantSummary.lockedCount,
     upstreamMode: staStore.config.mode,
     simulateUpstreamFailure: staStore.config.simulateUpstreamFailure,
+    siemStatus: siemForwarder.getStatus(),
   });
 });
 
@@ -174,6 +176,119 @@ apiRouter.get('/export/go', (req: Request, res: Response) => {
 
 apiRouter.get('/export/docker', (req: Request, res: Response) => {
   return res.json(DOCKER_CODE_EXPORT);
+});
+
+// SIEM Real-Time Forwarding Config & Testing
+apiRouter.get('/siem/config', (req: Request, res: Response) => {
+  return res.json({
+    config: siemForwarder.getConfig(),
+    status: siemForwarder.getStatus(),
+  });
+});
+
+apiRouter.put('/siem/config', (req: Request, res: Response) => {
+  const updated = siemForwarder.updateConfig(req.body);
+  return res.json({
+    config: updated,
+    status: siemForwarder.getStatus(),
+  });
+});
+
+apiRouter.post('/siem/test', async (req: Request, res: Response) => {
+  const scenario = req.body.actionStatus || 'FORBIDDEN';
+  const testFormat = (req.body.format || siemForwarder.getConfig().format) as any;
+
+  let sampleEntry: any;
+  if (scenario === 'AUTH_FAILED') {
+    sampleEntry = {
+      id: 'test_evt_' + Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toISOString(),
+      correlationId: 'req_siem_test_' + Math.random().toString(36).substring(2, 8),
+      userId: 'anonymous',
+      clientName: 'Unknown External Client',
+      authType: 'SERVICE_ACCOUNT' as const,
+      authSuccess: false,
+      authFailureReason: 'Invalid or revoked API key',
+      action: 'users.read',
+      actionCategory: 'Users' as const,
+      httpMethod: 'GET',
+      endpoint: '/api/v1/users',
+      actionStatus: 'AUTH_FAILED' as const,
+      rejectionReason: 'Authentication failed: Invalid credentials provided to Thales STA Proxy',
+      upstreamStatusCode: null,
+      latencyMs: 14,
+      clientIp: req.ip || '192.168.1.105',
+      userAgent: 'SIEM-Test-Probe/1.0',
+      requestPayloadSummary: null,
+      responseSummary: '{"error": "Unauthorized", "message": "Invalid API key"}',
+    };
+  } else if (scenario === 'FORBIDDEN') {
+    sampleEntry = {
+      id: 'test_evt_' + Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toISOString(),
+      correlationId: 'req_siem_test_' + Math.random().toString(36).substring(2, 8),
+      userId: req.body.userId || 'sa_servicenow_helpdesk',
+      clientName: 'ServiceNow ITSM Helpdesk Bot',
+      authType: 'SERVICE_ACCOUNT' as const,
+      authSuccess: true,
+      authFailureReason: null,
+      action: 'policies.delete',
+      actionCategory: 'Policies' as const,
+      httpMethod: 'DELETE',
+      endpoint: '/api/v1/policies/pol_mfa_all_cloud',
+      actionStatus: 'FORBIDDEN' as const,
+      rejectionReason: "improper rights: caller role 'helpdesk-operator' lacks required permission 'sta:policies:delete'",
+      upstreamStatusCode: null,
+      latencyMs: 22,
+      clientIp: req.ip || '10.0.4.15',
+      userAgent: 'ServiceNow-Integration/4.2',
+      requestPayloadSummary: null,
+      responseSummary: '{"error": "Forbidden", "code": "IMPROPER_RIGHTS"}',
+    };
+  } else {
+    sampleEntry = {
+      id: 'test_evt_' + Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toISOString(),
+      correlationId: 'req_siem_test_' + Math.random().toString(36).substring(2, 8),
+      userId: req.body.userId || 'sa_servicenow_helpdesk',
+      clientName: 'ServiceNow ITSM Helpdesk Bot',
+      authType: 'SERVICE_ACCOUNT' as const,
+      authSuccess: true,
+      authFailureReason: null,
+      action: 'users.unlock',
+      actionCategory: 'Users' as const,
+      httpMethod: 'POST',
+      endpoint: '/api/v1/users/usr_4821/unlock',
+      actionStatus: 'SUCCESS' as const,
+      rejectionReason: null,
+      upstreamStatusCode: 200,
+      latencyMs: 38,
+      clientIp: req.ip || '10.0.4.15',
+      userAgent: 'ServiceNow-Integration/4.2',
+      requestPayloadSummary: '{"reason": "Identity verified via telephone challenge"}',
+      responseSummary: '{"status": "SUCCESS", "message": "User unlocked"}',
+    };
+  }
+
+  const wirePayload = siemForwarder.formatMessage(sampleEntry, testFormat);
+
+  // If enabled, attempt real dispatch
+  let dispatchResult = { success: true, message: 'Message formatted successfully (SIEM disabled)' };
+  if (siemForwarder.getConfig().enabled) {
+    const outcome = await siemForwarder.forward(sampleEntry);
+    if (!outcome.success) {
+      dispatchResult = { success: false, message: outcome.error || 'Failed to dispatch to SIEM' };
+    } else {
+      dispatchResult = { success: true, message: `Successfully transmitted event over ${siemForwarder.getConfig().protocol} to ${siemForwarder.getConfig().host}:${siemForwarder.getConfig().port}` };
+    }
+  }
+
+  return res.json({
+    ...dispatchResult,
+    wirePayload,
+    sampleEntry,
+    siemStatus: siemForwarder.getStatus(),
+  });
 });
 
 // OpenAPI 3.0.3 Specification (Dynamic based on current RBAC config)

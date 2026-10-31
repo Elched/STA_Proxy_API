@@ -316,7 +316,121 @@ Every single inbound API call generates a structured audit log entry adhering to
 
 ---
 
-## 8. Dynamic OpenAPI / Swagger Specification
+## 8. Real-Time SIEM & Syslog Forwarding
+
+The proxy includes a high-throughput, non-blocking real-time event dispatcher (`server/siemForwarder.ts`) that immediately streams every inbound security audit event to your Security Information and Event Management (SIEM) or centralized log platform.
+
+### Supported Protocols & Formats
+
+| Protocol / Transport | Supported Wire Formats | Standard Port | Primary Target SIEMs |
+| :--- | :--- | :--- | :--- |
+| **UDP** | `RFC_5424`, `RFC_3164`, `CEF`, `JSON` | `514` | Rsyslog, Syslog-ng, Splunk, Graylog, Sentinel |
+| **TCP** | `RFC_5424`, `RFC_3164`, `CEF`, `JSON` | `514` | Logstash, Fluentd, Sumo Logic, Wazuh |
+| **TLS** | `RFC_5424`, `RFC_3164`, `CEF`, `JSON` | `6514` | Enterprise Syslog over TLS, Datadog |
+| **SPLUNK_HEC** | Event JSON with token header | `8088` | Splunk Enterprise, Splunk Cloud HEC |
+| **WEBHOOK** | JSON Payload via HTTPS POST | `443` | Elastic HTTP endpoint, Cortex XSOAR, Custom API |
+
+### Environment Variables for SIEM Forwarding
+
+Add the following variables to your `.env` or container environment:
+
+```env
+# Enable live streaming to SIEM
+SIEM_FORWARDING_ENABLED=true
+
+# Transport protocol: UDP | TCP | TLS | SPLUNK_HEC | WEBHOOK
+SIEM_PROTOCOL=UDP
+
+# SIEM collector host or IP
+SIEM_HOST=syslog.corp.internal
+
+# SIEM collector port (514 for Syslog, 6514 for TLS, 8088 for Splunk HEC)
+SIEM_PORT=514
+
+# Wire format: RFC_5424 | RFC_3164 | CEF | JSON
+SIEM_FORMAT=RFC_5424
+
+# Syslog Facility (16 = local0, 4 = auth, 10 = authpriv)
+SIEM_FACILITY=16
+
+# Syslog APP-NAME header
+SIEM_APP_NAME=thales-sta-proxy
+
+# For Splunk HEC protocol:
+SIEM_HEC_TOKEN=00000000-0000-0000-0000-000000000000
+
+# For WEBHOOK protocol:
+SIEM_WEBHOOK_URL=https://siem-collector.corp.internal/v1/audit
+```
+
+### Wire Format Examples
+
+#### 1. RFC-5424 (Standard with Structured Data):
+```syslog
+<134>1 2026-10-31T09:31:10.800Z sta-proxy-node-01 thales-sta-proxy 4210 req_0297c51e [staAudit@44917 userId="sa_workday_hr" action="create.user" status="UPSTREAM_FAILED" clientIp="192.168.10.12" latencyMs="59" code="409" reason="the action has failed on the identity provider side: STA returned HTTP 409"] Upstream action failed on Thales STA: STA returned HTTP 409
+```
+
+#### 2. CEF (Common Event Format for IBM QRadar / ArcSight):
+```cef
+CEF:0|Thales|SafeNet Trusted Access Proxy|1.0.0|sta:policies:delete|Delete Policy Blocked|7|src=10.0.4.15 suser=sa_servicenow_helpdesk act=FORBIDDEN outcome=failure reason=improper rights: caller lacks required permission 'sta:policies:delete'
+```
+
+### SIEM Configuration Examples
+
+#### A. Splunk `inputs.conf` (UDP 514 Syslog):
+```ini
+[udp://514]
+sourcetype = thales:sta:proxy
+index = security_audit
+no_priority_stripping = false
+```
+
+#### B. Logstash (ELK Stack) Pipeline:
+```ruby
+input {
+  syslog {
+    port => 514
+    type => "thales_sta_audit"
+  }
+}
+
+filter {
+  if [type] == "thales_sta_audit" {
+    grok {
+      match => { "message" => "\[staAudit@44917 %{DATA:sta_fields}\] %{GREEDYDATA:log_summary}" }
+    }
+    kv {
+      source => "sta_fields"
+      target => "sta"
+    }
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["https://elasticsearch.corp.internal:9200"]
+    index => "thales-sta-audit-%{+YYYY.MM.dd}"
+  }
+}
+```
+
+#### C. Rsyslog Forwarding Rule (`/etc/rsyslog.d/30-sta-proxy.conf`):
+```text
+# Filter and log Thales STA Proxy events
+if $programname == 'thales-sta-proxy' then /var/log/thales-sta-audit.log
+& stop
+```
+
+### Live SIEM Testing API
+
+You can test real-time delivery and inspect wire payloads via the API or Web UI:
+- **Inspect Config**: `GET /api/siem/config`
+- **Update Config**: `PUT /api/siem/config`
+- **Send Test Event**: `POST /api/siem/test` (payload: `{"testScenario": "SUCCESS" | "FORBIDDEN" | "AUTH_FAILED"}`)
+
+---
+
+## 9. Dynamic OpenAPI / Swagger Specification
 
 Fetch or integrate the live OpenAPI documentation directly:
 - **OpenAPI JSON**: `GET /api/openapi.json`
@@ -325,16 +439,16 @@ Fetch or integrate the live OpenAPI documentation directly:
 
 ---
 
-## 9. Security Hardening Checklist for Production
+## 10. Security Hardening Checklist for Production
 
 1. **Enforce TLS 1.3**: Always terminate TLS at an edge reverse proxy (e.g., Nginx, Traefik, AWS ALB) or pass SSL certificates directly into the container.
 2. **Key Isolation**: Never hardcode `STA_MASTER_API_KEY`. In Kubernetes or Docker Swarm, mount it via Secrets or retrieve it dynamically at container startup from HashiCorp Vault.
 3. **Mutual TLS (mTLS)**: For high-security machine-to-machine integrations (e.g., banking/defense), configure Nginx with `ssl_verify_client on;` to validate client certificates.
-4. **Log Forwarding**: Point your SIEM agent (Splunk Universal Forwarder, Datadog Agent, FluentBit) to `/api/audit-logs/export?format=syslog` or capture stdout docker logs with `json-file` driver.
+4. **Real-Time SIEM Log Forwarding**: Configure `SIEM_FORWARDING_ENABLED=true` with your SIEM host/port (UDP, TCP, TLS, or Splunk HEC) for instant real-time event ingestion, and archive logs periodically via `GET /api/audit-logs/export`.
 
 ---
 
-## 10. License & Support
+## 11. License & Support
 
 - **License**: Apache 2.0
 - **Documentation**: [Thales SafeNet Trusted Access API Documentation](https://thalesdocs.com/sta/api/)

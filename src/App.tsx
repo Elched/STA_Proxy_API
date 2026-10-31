@@ -6,6 +6,7 @@ import { AuditLogExplorer } from './components/AuditLogExplorer.tsx';
 import { RbacMatrix } from './components/RbacMatrix.tsx';
 import { ServiceAccountsManager } from './components/ServiceAccountsManager.tsx';
 import { UpstreamStaConfigView } from './components/UpstreamStaConfig.tsx';
+import { SiemForwarderConfigView } from './components/SiemForwarderConfig.tsx';
 import { CodeExportDeploy } from './components/CodeExportDeploy.tsx';
 import { AuditLogEntry, PermissionItem, ProxyStats, RbacRole, RbacRule, ServiceAccount } from './types.ts';
 
@@ -118,6 +119,10 @@ export default function App() {
                 onRefresh={loadData}
                 onClearLogs={handleClearLogs}
               />
+            )}
+
+            {activeTab === 'siem' && (
+              <SiemForwarderConfigView />
             )}
 
             {activeTab === 'rbac' && (

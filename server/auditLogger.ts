@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { AuditLogEntry } from './types.ts';
+import { siemForwarder } from './siemForwarder.ts';
 
 class AuditLogger {
   private logs: AuditLogEntry[] = [];
@@ -134,6 +135,12 @@ class AuditLogger {
     if (this.logs.length > this.maxLogs) {
       this.logs.pop();
     }
+
+    // Real-time asynchronous forward to SIEM (non-blocking)
+    siemForwarder.forward(fullEntry).catch(err => {
+      // Handled internally in siemForwarder
+    });
+
     return fullEntry;
   }
 

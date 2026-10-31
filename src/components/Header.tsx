@@ -21,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'tester', label: 'Gateway & Sandbox' },
     { id: 'docs', label: 'Swagger / OpenAPI Docs' },
     { id: 'audit', label: 'Security Audit Logs' },
+    { id: 'siem', label: 'SIEM & Syslog' },
     { id: 'rbac', label: 'RBAC Policy Matrix' },
     { id: 'service-accounts', label: 'Service Accounts & OIDC' },
     { id: 'upstream', label: 'Upstream Thales STA' },
