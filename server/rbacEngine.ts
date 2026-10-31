@@ -17,6 +17,18 @@ class RbacEngine {
   };
 
   /**
+   * Constant-time comparison to protect against timing attacks on API keys
+   */
+  private timingSafeMatch(candidate: string, actual: string): boolean {
+    const bufA = Buffer.from(candidate);
+    const bufB = Buffer.from(actual);
+    if (bufA.length !== bufB.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(bufA, bufB);
+  }
+
+  /**
    * Authenticate incoming request credentials.
    * Supports:
    * 1. X-API-Key: <service_account_api_key>
@@ -44,8 +56,15 @@ class RbacEngine {
       };
     }
 
-    // 1. Check Service Accounts
-    const sa = this.serviceAccounts.find(s => s.apiKey === token);
+    // 1. Check Service Accounts using timing-safe comparison
+    let sa: ServiceAccount | undefined;
+    for (const s of this.serviceAccounts) {
+      if (this.timingSafeMatch(token, s.apiKey)) {
+        sa = s;
+        break;
+      }
+    }
+
     if (sa) {
       if (sa.status === 'revoked') {
         return {
@@ -105,15 +124,27 @@ class RbacEngine {
         return { valid: false, error: 'authentication failed: malformed JWT (expected 3 parts)' };
       }
 
+      // Parse and validate header
+      const headerJson = Buffer.from(parts[0], 'base64url').toString('utf8');
+      const header = JSON.parse(headerJson);
+      if (!header.alg || header.alg.toLowerCase() === 'none') {
+        return { valid: false, error: 'authentication failed: OIDC algorithm "none" is rejected for security' };
+      }
+
       const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
       const payload = JSON.parse(payloadJson);
 
+      const nowSec = Math.floor(Date.now() / 1000);
+      const clockSkewSec = 60; // 60s tolerance
+
       // Check Expiration
-      if (payload.exp) {
-        const nowSec = Math.floor(Date.now() / 1000);
-        if (payload.exp < nowSec) {
-          return { valid: false, error: `authentication failed: OIDC token expired at ${new Date(payload.exp * 1000).toISOString()}` };
-        }
+      if (payload.exp && payload.exp < (nowSec - clockSkewSec)) {
+        return { valid: false, error: `authentication failed: OIDC token expired at ${new Date(payload.exp * 1000).toISOString()}` };
+      }
+
+      // Check Not-Before (nbf)
+      if (payload.nbf && payload.nbf > (nowSec + clockSkewSec)) {
+        return { valid: false, error: `authentication failed: OIDC token not yet valid (nbf: ${new Date(payload.nbf * 1000).toISOString()})` };
       }
 
       // Extract identity & roles

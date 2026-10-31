@@ -2,5 +2,7 @@
   "name": "Thales STA Granular API Proxy",
   "description": "Zero-Trust Granular RBAC API Proxy and Audit Gateway for Thales SafeNet Trusted Access (STA), with OIDC authentication, service account management, and real-time structured security audit logging.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

@@ -6,6 +6,29 @@ import { staStore } from './staMockStore.ts';
 
 export const proxyRouter = Router();
 
+// Redact sensitive secrets from audit logs
+function redactSensitivePayload(body: any): string {
+  if (!body || typeof body !== 'object' || Object.keys(body).length === 0) return '';
+  try {
+    const clone = JSON.parse(JSON.stringify(body));
+    const maskKeys = ['password', 'secret', 'clientsecret', 'token', 'apikey', 'pin', 'passcode'];
+    const mask = (obj: any) => {
+      if (!obj || typeof obj !== 'object') return;
+      for (const k of Object.keys(obj)) {
+        if (maskKeys.some(m => k.toLowerCase().includes(m))) {
+          obj[k] = '[REDACTED]';
+        } else if (typeof obj[k] === 'object') {
+          mask(obj[k]);
+        }
+      }
+    };
+    mask(clone);
+    return JSON.stringify(clone);
+  } catch {
+    return '';
+  }
+}
+
 // Handle all methods and paths under /proxy/*
 proxyRouter.all('*', async (req: Request, res: Response) => {
   const startTime = Date.now();
@@ -21,6 +44,17 @@ proxyRouter.all('*', async (req: Request, res: Response) => {
     res.setHeader('X-Proxy-Gateway', 'Thales-STA-Granular-RBAC-Proxy/1.0');
     return res.status(statusCode).json(payload);
   };
+
+  // Security Check 1: Path Traversal defense
+  if (targetPath.includes('..') || targetPath.includes('%2e') || targetPath.includes('%2E')) {
+    return sendProxyResponse(400, {
+      error: 'Bad Request',
+      code: 'PATH_TRAVERSAL_DETECTED',
+      correlationId,
+      message: 'Path traversal sequences are strictly prohibited by zero-trust gateway.',
+      timestamp: new Date().toISOString(),
+    });
+  }
 
   // 1. Authenticate caller
   const authResult = rbacEngine.authenticateCaller(req.headers);
@@ -47,7 +81,7 @@ proxyRouter.all('*', async (req: Request, res: Response) => {
       latencyMs,
       clientIp,
       userAgent,
-      requestPayloadSummary: req.body && Object.keys(req.body).length > 0 ? JSON.stringify(req.body) : '',
+      requestPayloadSummary: redactSensitivePayload(req.body),
       responseSummary: JSON.stringify({ error: 'Unauthorized', message: failureReason }),
     });
 
@@ -87,7 +121,7 @@ proxyRouter.all('*', async (req: Request, res: Response) => {
       latencyMs,
       clientIp,
       userAgent,
-      requestPayloadSummary: req.body && Object.keys(req.body).length > 0 ? JSON.stringify(req.body) : '',
+      requestPayloadSummary: redactSensitivePayload(req.body),
       responseSummary: JSON.stringify({ error: 'Forbidden', message: rejectionReason }),
     });
 
@@ -112,6 +146,27 @@ proxyRouter.all('*', async (req: Request, res: Response) => {
 
   try {
     if (staStore.config.mode === 'live') {
+      // Validate upstream URL to prevent SSRF
+      const baseUrl = staStore.config.apiBaseUrl.trim();
+      try {
+        const parsedUrl = new URL(baseUrl);
+        const host = parsedUrl.hostname.toLowerCase();
+        if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+          throw new Error('Upstream protocol must be HTTPS');
+        }
+        if (host === 'localhost' || host === '127.0.0.1' || host === '169.254.169.254' || host === '0.0.0.0') {
+          throw new Error('Upstream address cannot target internal loopback or cloud metadata services');
+        }
+      } catch (urlErr: any) {
+        return sendProxyResponse(502, {
+          error: 'Bad Gateway',
+          code: 'SSRF_BLOCKED',
+          correlationId,
+          message: `Invalid upstream URL configuration: ${urlErr.message}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       // Real Upstream STA Forwarding over HTTPS / TLS
       const staUrl = `${staStore.config.apiBaseUrl.replace(/\/$/, '')}${targetPath}`;
       const fetchHeaders: Record<string, string> = {
@@ -184,7 +239,7 @@ proxyRouter.all('*', async (req: Request, res: Response) => {
     latencyMs,
     clientIp,
     userAgent,
-    requestPayloadSummary: req.body && Object.keys(req.body).length > 0 ? JSON.stringify(req.body) : '',
+    requestPayloadSummary: redactSensitivePayload(req.body),
     responseSummary: JSON.stringify(upstreamBody).slice(0, 500),
   });
 

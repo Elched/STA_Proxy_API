@@ -13,8 +13,17 @@ async function startServer() {
   const PORT = parseInt(process.env.PORT || '3000', 10);
   const isProduction = process.env.NODE_ENV === 'production';
 
-  // Request JSON body parsing
-  app.use(express.json());
+  // Request JSON body parsing with strict size limit to prevent payload flooding DoS
+  app.use(express.json({ limit: '2mb' }));
+
+  // Security Headers Middleware
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+  });
 
   // CORS Headers for API calls
   app.use((req, res, next) => {
@@ -48,11 +57,23 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[STA-API-Proxy] Server listening on http://0.0.0.0:${PORT}`);
     console.log(`[STA-API-Proxy] Proxy gateway active at /proxy/api/v1/*`);
     console.log(`[STA-API-Proxy] Admin endpoints active at /api/*`);
   });
+
+  // Graceful shutdown handling for container runtimes
+  const shutdown = () => {
+    console.log('[STA-API-Proxy] Received shutdown signal. Closing HTTP server...');
+    server.close(() => {
+      console.log('[STA-API-Proxy] HTTP server closed gracefully.');
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 startServer().catch(err => {
