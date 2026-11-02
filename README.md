@@ -1,6 +1,6 @@
 # Thales SafeNet Trusted Access (STA) Granular API Proxy
 
-NOTR: this project has been coded with AI as a proof of concept.
+NOTE: this project has been coded with AI as a proof of concept.
 
 Do NOT use in production as is. No Security review or validation has been performed on the code.
 functionality is not guaranteed either. Do not expose the application over the internet.
