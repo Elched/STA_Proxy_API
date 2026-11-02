@@ -290,7 +290,7 @@ export const RbacMatrix: React.FC<RbacMatrixProps> = ({
                   type="text"
                   required
                   placeholder="e.g. security-tier2-responder"
-                  value={newRoleId}
+                  value={newRoleId ?? ''}
                   onChange={e => setNewRoleId(e.target.value)}
                   className="w-full font-mono text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
                 />
@@ -304,7 +304,7 @@ export const RbacMatrix: React.FC<RbacMatrixProps> = ({
                   type="text"
                   required
                   placeholder="e.g. Security Operations Analyst"
-                  value={newRoleName}
+                  value={newRoleName ?? ''}
                   onChange={e => setNewRoleName(e.target.value)}
                   className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
                 />
@@ -317,7 +317,7 @@ export const RbacMatrix: React.FC<RbacMatrixProps> = ({
                 <input
                   type="text"
                   placeholder="e.g. Can view audit logs and unlock accounts only."
-                  value={newRoleDesc}
+                  value={newRoleDesc ?? ''}
                   onChange={e => setNewRoleDesc(e.target.value)}
                   className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
                 />

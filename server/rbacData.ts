@@ -11,6 +11,7 @@ export const ALL_PERMISSIONS = [
   { id: 'sta:tokens:read', label: 'Read Authenticators', description: 'View user tokens and hardware inventory', category: 'Authenticators' },
   { id: 'sta:tokens:assign', label: 'Assign Authenticators', description: 'Provision MobilePASS+, Push, or hardware tokens', category: 'Authenticators' },
   { id: 'sta:tokens:revoke', label: 'Revoke Authenticators', description: 'Revoke lost or compromised tokens', category: 'Authenticators' },
+  { id: 'sta:tokens:unlock', label: 'Unlock Authenticator', description: 'Clear PIN lockouts or re-synchronize OTP drift', category: 'Authenticators' },
 
   { id: 'sta:applications:read', label: 'Read Applications', description: 'View configured SSO applications', category: 'Applications' },
   { id: 'sta:applications:create', label: 'Create Applications', description: 'Register new SAML/OIDC applications', category: 'Applications' },
@@ -122,6 +123,15 @@ export const INITIAL_RULES: RbacRule[] = [
     requiredPermission: 'sta:tokens:revoke',
     category: 'Authenticators',
   },
+  {
+    id: 'rule_tokens_unlock',
+    name: 'Unlock Authenticator',
+    description: 'Unlock token lockout or clear PIN failure count',
+    httpMethod: 'POST',
+    pathPattern: '/api/v1/users/:userId/tokens/:tokenId/unlock',
+    requiredPermission: 'sta:tokens:unlock',
+    category: 'Authenticators',
+  },
 
   // Applications endpoints
   {
@@ -190,6 +200,35 @@ export const INITIAL_RULES: RbacRule[] = [
     category: 'Policies',
   },
 
+  // Groups endpoints
+  {
+    id: 'rule_groups_list',
+    name: 'List Groups',
+    description: 'Query user groups and memberships',
+    httpMethod: 'GET',
+    pathPattern: '/api/v1/groups',
+    requiredPermission: 'sta:groups:read',
+    category: 'Groups',
+  },
+  {
+    id: 'rule_groups_get',
+    name: 'Get Group Details',
+    description: 'Retrieve single group and member list',
+    httpMethod: 'GET',
+    pathPattern: '/api/v1/groups/:groupId',
+    requiredPermission: 'sta:groups:read',
+    category: 'Groups',
+  },
+  {
+    id: 'rule_groups_manage',
+    name: 'Manage Group Memberships',
+    description: 'Add or remove users from a group',
+    httpMethod: 'POST',
+    pathPattern: '/api/v1/groups/:groupId/members',
+    requiredPermission: 'sta:groups:manage',
+    category: 'Groups',
+  },
+
   // Audit Logs endpoints
   {
     id: 'rule_audit_logs',
@@ -215,6 +254,7 @@ export const INITIAL_ROLES: RbacRole[] = [
       'sta:tokens:read',
       'sta:tokens:assign',
       'sta:tokens:revoke',
+      'sta:tokens:unlock',
     ],
   },
   {

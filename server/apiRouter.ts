@@ -165,6 +165,56 @@ apiRouter.get('/sta/mock-state', (req: Request, res: Response) => {
   return res.json(staStore.getTenantSummary());
 });
 
+apiRouter.get('/sta/health', async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  if (staStore.config.mode === 'mock') {
+    return res.json({
+      status: 'healthy',
+      mode: 'mock',
+      upstream: 'simulated',
+      tenantId: staStore.config.tenantId,
+      latencyMs: 2,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Live upstream probe
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const probeUrl = `${staStore.config.apiBaseUrl.replace(/\/$/, '')}/api/v1/users?limit=1`;
+    const resp = await fetch(probeUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${staStore.config.masterApiKey}`,
+        'X-STA-Tenant-ID': staStore.config.tenantId,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const latencyMs = Date.now() - startTime;
+    return res.json({
+      status: resp.ok ? 'healthy' : 'degraded',
+      mode: 'live',
+      upstream: resp.ok ? 'connected' : `HTTP ${resp.status}`,
+      statusCode: resp.status,
+      latencyMs,
+      tenantId: staStore.config.tenantId,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    return res.status(502).json({
+      status: 'unhealthy',
+      mode: 'live',
+      upstream: 'unreachable',
+      error: err.message,
+      tenantId: staStore.config.tenantId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Code Exports
 apiRouter.get('/export/python', (req: Request, res: Response) => {
   return res.json(PYTHON_CODE_EXPORT);

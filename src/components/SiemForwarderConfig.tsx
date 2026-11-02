@@ -72,11 +72,27 @@ export const SiemForwarderConfigView: React.FC = () => {
   // Test event scenario
   const [testScenario, setTestScenario] = useState<'SUCCESS' | 'FORBIDDEN' | 'AUTH_FAILED'>('FORBIDDEN');
 
+  const sanitizeConfig = (rawCfg: any): SiemConfig => {
+    const p = parseInt(String(rawCfg?.port), 10);
+    return {
+      enabled: Boolean(rawCfg?.enabled),
+      protocol: (['UDP', 'TCP', 'TLS', 'SPLUNK_HEC', 'WEBHOOK'].includes(rawCfg?.protocol) ? rawCfg.protocol : 'UDP'),
+      host: rawCfg?.host && rawCfg.host !== 'CHANGEME' ? String(rawCfg.host) : '127.0.0.1',
+      port: !isNaN(p) && p > 0 && p <= 65535 ? p : 514,
+      format: (['RFC_5424', 'RFC_3164', 'CEF', 'JSON'].includes(rawCfg?.format) ? rawCfg.format : 'RFC_5424'),
+      facility: typeof rawCfg?.facility === 'number' ? rawCfg.facility : 4,
+      appName: rawCfg?.appName ? String(rawCfg.appName) : 'sta-api-proxy',
+      tlsVerify: rawCfg?.tlsVerify !== false,
+      hecToken: rawCfg?.hecToken && rawCfg.hecToken !== 'CHANGEME' ? String(rawCfg.hecToken) : '',
+      webhookUrl: rawCfg?.webhookUrl && rawCfg.webhookUrl !== 'CHANGEME' ? String(rawCfg.webhookUrl) : '',
+    };
+  };
+
   const fetchSiemData = async () => {
     try {
       const res = await fetch('/api/siem/config');
       const data = await res.json();
-      setConfig(data.config);
+      setConfig(sanitizeConfig(data.config));
       setStatus(data.status);
     } catch (err) {
       console.error('Failed to load SIEM config:', err);
@@ -100,7 +116,7 @@ export const SiemForwarderConfigView: React.FC = () => {
         body: JSON.stringify(config),
       });
       const data = await res.json();
-      setConfig(data.config);
+      setConfig(sanitizeConfig(data.config));
       setStatus(data.status);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -260,7 +276,7 @@ export const SiemForwarderConfigView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  value={config.host}
+                  value={config.host ?? ''}
                   onChange={e => setConfig({ ...config, host: e.target.value })}
                   placeholder="e.g. siem.corp.internal or 192.168.10.50"
                   className="w-full text-xs font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
@@ -274,7 +290,7 @@ export const SiemForwarderConfigView: React.FC = () => {
                 <input
                   type="number"
                   required
-                  value={config.port}
+                  value={config.port ?? ''}
                   onChange={e => setConfig({ ...config, port: parseInt(e.target.value, 10) || 514 })}
                   className="w-full text-xs font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
                 />
@@ -312,7 +328,7 @@ export const SiemForwarderConfigView: React.FC = () => {
                 </label>
                 <input
                   type="password"
-                  value={config.hecToken || ''}
+                  value={config.hecToken ?? ''}
                   onChange={e => setConfig({ ...config, hecToken: e.target.value })}
                   placeholder="e.g. b8c4e512-8812-4f30-8041-39c298e10492"
                   className="w-full text-xs font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
@@ -328,7 +344,7 @@ export const SiemForwarderConfigView: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={config.webhookUrl || ''}
+                  value={config.webhookUrl ?? ''}
                   onChange={e => setConfig({ ...config, webhookUrl: e.target.value })}
                   placeholder="https://http-intake.logs.datadoghq.com/api/v2/logs"
                   className="w-full text-xs font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
@@ -343,7 +359,7 @@ export const SiemForwarderConfigView: React.FC = () => {
                   Syslog Facility:
                 </label>
                 <select
-                  value={config.facility}
+                  value={config.facility ?? 4}
                   onChange={e => setConfig({ ...config, facility: parseInt(e.target.value, 10) })}
                   className="w-full text-xs font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-3 py-1.5"
                 >
@@ -360,7 +376,7 @@ export const SiemForwarderConfigView: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={config.appName}
+                  value={config.appName ?? ''}
                   onChange={e => setConfig({ ...config, appName: e.target.value })}
                   className="w-full text-xs font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-slate-900 dark:text-white"
                 />

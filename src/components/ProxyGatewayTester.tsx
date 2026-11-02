@@ -105,6 +105,26 @@ export const ProxyGatewayTester: React.FC<ProxyGatewayTesterProps> = ({
       expected: 'SUCCESS (201 Created)',
     },
     {
+      id: 'unlock_token_helpdesk',
+      label: 'Helpdesk: Unlock Token PIN Lockout',
+      description: 'Reset MobilePASS+ token lockout counter for user usr_4821.',
+      caller: 'sa_helpdesk',
+      method: 'POST' as const,
+      path: '/api/v1/users/usr_4821/tokens/tok_mp_101/unlock',
+      body: '{\n  "reason": "ITSM INC-9952: Caller verified and PIN lockout reset."\n}',
+      expected: 'SUCCESS (200 OK)',
+    },
+    {
+      id: 'query_groups_hr',
+      label: 'HR Sync: Query Groups (sta:groups:read)',
+      description: 'Workday HR Sync queries user groups in SafeNet Trusted Access.',
+      caller: 'sa_hr',
+      method: 'GET' as const,
+      path: '/api/v1/groups',
+      body: '',
+      expected: 'SUCCESS (200 OK)',
+    },
+    {
       id: 'siem_read_logs',
       label: 'Splunk SIEM: Query STA Logs',
       description: 'SIEM service account queries raw STA tenant security audit events.',
@@ -377,7 +397,7 @@ export const ProxyGatewayTester: React.FC<ProxyGatewayTesterProps> = ({
                 <input
                   type="text"
                   placeholder="e.g. sta_proxy_sk_... or eyJhbGciOi..."
-                  value={customKey}
+                  value={customKey ?? ''}
                   onChange={e => setCustomKey(e.target.value)}
                   className="w-full text-xs font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
                 />
@@ -404,7 +424,7 @@ export const ProxyGatewayTester: React.FC<ProxyGatewayTesterProps> = ({
                   <span className="absolute left-3 top-2.5 text-xs font-mono text-slate-400">/proxy</span>
                   <input
                     type="text"
-                    value={endpointPath}
+                    value={endpointPath ?? ''}
                     onChange={e => setEndpointPath(e.target.value)}
                     placeholder="/api/v1/users/usr_4821/unlock"
                     className="w-full text-xs font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 pl-16 pr-3 py-2 text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500"

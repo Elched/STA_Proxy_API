@@ -35,17 +35,22 @@ export interface SiemStatus {
 }
 
 class SiemForwarder {
+  private safePort(val: any, fallback = 514): number {
+    const p = parseInt(String(val), 10);
+    return !isNaN(p) && p > 0 && p <= 65535 ? p : fallback;
+  }
+
   private config: SiemConfig = {
     enabled: process.env.SIEM_FORWARDING_ENABLED === 'true' || false,
-    protocol: (process.env.SIEM_PROTOCOL as SiemProtocol) || 'UDP',
-    host: process.env.SIEM_HOST || '127.0.0.1',
-    port: parseInt(process.env.SIEM_PORT || '514', 10),
-    format: (process.env.SIEM_FORMAT as SiemFormat) || 'RFC_5424',
+    protocol: (['UDP', 'TCP', 'TLS', 'SPLUNK_HEC', 'WEBHOOK'].includes(process.env.SIEM_PROTOCOL as any) ? process.env.SIEM_PROTOCOL : 'UDP') as SiemProtocol,
+    host: process.env.SIEM_HOST && process.env.SIEM_HOST !== 'CHANGEME' ? process.env.SIEM_HOST : '127.0.0.1',
+    port: 514,
+    format: (['RFC_5424', 'RFC_3164', 'CEF', 'JSON'].includes(process.env.SIEM_FORMAT as any) ? process.env.SIEM_FORMAT : 'RFC_5424') as SiemFormat,
     facility: 4, // authpriv
     appName: 'sta-api-proxy',
     tlsVerify: process.env.SIEM_TLS_VERIFY !== 'false',
-    hecToken: process.env.SIEM_HEC_TOKEN || '',
-    webhookUrl: process.env.SIEM_WEBHOOK_URL || '',
+    hecToken: process.env.SIEM_HEC_TOKEN && process.env.SIEM_HEC_TOKEN !== 'CHANGEME' ? process.env.SIEM_HEC_TOKEN : '',
+    webhookUrl: process.env.SIEM_WEBHOOK_URL && process.env.SIEM_WEBHOOK_URL !== 'CHANGEME' ? process.env.SIEM_WEBHOOK_URL : '',
   };
 
   private eventsSent = 0;
@@ -57,6 +62,7 @@ class SiemForwarder {
   private udpClient: dgram.Socket | null = null;
 
   constructor() {
+    this.config.port = this.safePort(process.env.SIEM_PORT, 514);
     this.initUdpClient();
   }
 
@@ -72,11 +78,15 @@ class SiemForwarder {
   }
 
   public getConfig(): SiemConfig {
-    return { ...this.config };
+    return { ...this.config, port: this.safePort(this.config.port, 514) };
   }
 
   public updateConfig(newConfig: Partial<SiemConfig>): SiemConfig {
-    this.config = { ...this.config, ...newConfig };
+    const updated = { ...this.config, ...newConfig };
+    if (newConfig.port !== undefined) {
+      updated.port = this.safePort(newConfig.port, 514);
+    }
+    this.config = updated;
     this.lastError = null;
     return { ...this.config };
   }

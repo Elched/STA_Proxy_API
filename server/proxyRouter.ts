@@ -33,9 +33,11 @@ function redactSensitivePayload(body: any): string {
 proxyRouter.all('*', async (req: Request, res: Response) => {
   const startTime = Date.now();
   const correlationId = (req.headers['x-correlation-id'] as string) || `req_${crypto.randomUUID()}`;
-  const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+  const rawForwarded = req.headers['x-forwarded-for'];
+  const clientIp = (typeof rawForwarded === 'string' ? rawForwarded.split(',')[0].trim() : (Array.isArray(rawForwarded) ? rawForwarded[0].trim() : null)) || req.socket.remoteAddress || '127.0.0.1';
   const userAgent = (req.headers['user-agent'] as string) || 'Unknown';
   const targetPath = req.path;
+  const queryString = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
   const method = req.method.toUpperCase();
 
   // Helper for response
@@ -154,7 +156,15 @@ proxyRouter.all('*', async (req: Request, res: Response) => {
         if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
           throw new Error('Upstream protocol must be HTTPS');
         }
-        if (host === 'localhost' || host === '127.0.0.1' || host === '169.254.169.254' || host === '0.0.0.0') {
+        if (
+          host === 'localhost' ||
+          host === '127.0.0.1' ||
+          host === '::1' ||
+          host === '169.254.169.254' ||
+          host === '0.0.0.0' ||
+          host.endsWith('.internal') ||
+          host.endsWith('.local')
+        ) {
           throw new Error('Upstream address cannot target internal loopback or cloud metadata services');
         }
       } catch (urlErr: any) {
@@ -167,8 +177,8 @@ proxyRouter.all('*', async (req: Request, res: Response) => {
         });
       }
 
-      // Real Upstream STA Forwarding over HTTPS / TLS
-      const staUrl = `${staStore.config.apiBaseUrl.replace(/\/$/, '')}${targetPath}`;
+      // Real Upstream STA Forwarding over HTTPS / TLS with query parameters
+      const staUrl = `${staStore.config.apiBaseUrl.replace(/\/$/, '')}${targetPath}${queryString}`;
       const fetchHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -181,6 +191,7 @@ proxyRouter.all('*', async (req: Request, res: Response) => {
       const fetchOptions: RequestInit = {
         method,
         headers: fetchHeaders,
+        signal: AbortSignal.timeout(15000), // 15-second upstream timeout to prevent socket hanging
       };
 
       if (['POST', 'PUT', 'PATCH'].includes(method) && req.body && Object.keys(req.body).length > 0) {
@@ -199,7 +210,7 @@ proxyRouter.all('*', async (req: Request, res: Response) => {
       // Mock STA Engine (High-Fidelity simulation)
       // Add slight realistic network latency simulation (20-60ms)
       await new Promise(r => setTimeout(r, Math.floor(25 + Math.random() * 35)));
-      const mockResult = staStore.handleMockRequest(method, targetPath, req.body);
+      const mockResult = staStore.handleMockRequest(method, targetPath, req.body, req.query);
       upstreamStatus = mockResult.status;
       upstreamBody = mockResult.body;
     }

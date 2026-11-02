@@ -13,6 +13,9 @@ async function startServer() {
   const PORT = parseInt(process.env.PORT || '3000', 10);
   const isProduction = process.env.NODE_ENV === 'production';
 
+  // Disable x-powered-by to prevent framework fingerprinting
+  app.disable('x-powered-by');
+
   // Request JSON body parsing with strict size limit to prevent payload flooding DoS
   app.use(express.json({ limit: '2mb' }));
 
@@ -36,6 +39,18 @@ async function startServer() {
     next();
   });
 
+  // Dedicated Healthcheck endpoints for Docker, Kubernetes, and load balancers
+  app.get(['/health', '/healthz'], (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).json({
+      status: 'ok',
+      uptime: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString(),
+      service: 'thales-sta-proxy',
+      version: '1.0.0',
+    });
+  });
+
   // In-memory sliding-window rate limiter for brute-force & denial-of-service defense
   const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
   const RATE_LIMIT_MAX = 300; // max requests per window
@@ -50,7 +65,8 @@ async function startServer() {
   }, 5 * 60 * 1000);
 
   const rateLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const rawForwarded = req.headers['x-forwarded-for'];
+    const clientIp = (typeof rawForwarded === 'string' ? rawForwarded.split(',')[0].trim() : (Array.isArray(rawForwarded) ? rawForwarded[0].trim() : null)) || req.socket.remoteAddress || '127.0.0.1';
     const now = Date.now();
     let record = rateLimitMap.get(clientIp);
 

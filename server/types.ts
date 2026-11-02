@@ -19,7 +19,7 @@ export interface RbacRule {
   httpMethod: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | '*';
   pathPattern: string; // e.g. "/api/v1/users/:id/unlock" or "/api/v1/policies/*"
   requiredPermission: string; // e.g. "sta:users:unlock"
-  category: 'Users' | 'Authenticators' | 'Applications' | 'Policies' | 'Groups' | 'Audit' | 'System';
+  category: 'Users' | 'Authenticators' | 'Applications' | 'Policies' | 'Groups' | 'Audit' | 'System' | 'Accounts';
 }
 
 export interface RbacRole {
@@ -51,7 +51,7 @@ export interface AuditLogEntry {
   authSuccess: boolean;
   authFailureReason: string | null;
   action: string; // e.g. "users.unlock"
-  actionCategory: 'Users' | 'Authenticators' | 'Applications' | 'Policies' | 'Groups' | 'Audit' | 'System';
+  actionCategory: 'Users' | 'Authenticators' | 'Applications' | 'Policies' | 'Groups' | 'Audit' | 'System' | 'Accounts';
   httpMethod: string;
   endpoint: string;
   actionStatus: ActionStatus;

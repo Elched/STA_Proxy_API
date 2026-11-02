@@ -257,10 +257,15 @@ class AuditLogger {
   }
 
   public exportSyslog(): string {
-    // RFC-5424 structured syslog format
+    // RFC-5424 structured syslog format with CRLF injection sanitization
+    const sanitize = (val: string | null | undefined) => (val || '').replace(/[\r\n]+/g, ' ').replace(/"/g, "'");
     return this.logs.map(log => {
       const pri = log.actionStatus === 'FORBIDDEN' || log.actionStatus === 'AUTH_FAILED' ? 131 : 134; // authpriv.err vs authpriv.info
-      return `<${pri}>1 ${log.timestamp} sta-api-proxy sta-proxy-gateway ${process.pid} ${log.correlationId} [audit@44917 userId="${log.userId}" action="${log.action}" status="${log.actionStatus}" reason="${(log.rejectionReason || '').replace(/"/g, "'")}"] HTTP ${log.httpMethod} ${log.endpoint} -> ${log.actionStatus}`;
+      const reasonClean = sanitize(log.rejectionReason);
+      const userClean = sanitize(log.userId);
+      const actionClean = sanitize(log.action);
+      const pathClean = sanitize(log.endpoint);
+      return `<${pri}>1 ${log.timestamp} sta-api-proxy sta-proxy-gateway ${process.pid} ${log.correlationId} [audit@44917 userId="${userClean}" action="${actionClean}" status="${log.actionStatus}" reason="${reasonClean}"] HTTP ${log.httpMethod} ${pathClean} -> ${log.actionStatus}`;
     }).join('\n');
   }
 

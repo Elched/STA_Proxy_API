@@ -13,6 +13,7 @@ class StaStore {
   private users: MockStaUser[] = [];
   private applications: MockStaApplication[] = [];
   private policies: MockStaPolicy[] = [];
+  private groups: Array<{ id: string; name: string; description: string; memberCount: number; members: string[] }> = [];
 
   constructor() {
     this.seedData();
@@ -160,10 +161,34 @@ class StaStore {
         status: 'ENABLED',
       },
     ];
+
+    this.groups = [
+      {
+        id: 'grp_engineering',
+        name: 'Engineering & DevOps',
+        description: 'Core software engineering and infrastructure team',
+        memberCount: 3,
+        members: ['marcus.vance', 'clara.oswald', 'david.chen'],
+      },
+      {
+        id: 'grp_it_helpdesk',
+        name: 'IT Support & Helpdesk',
+        description: 'Internal IT service desk tier 1 and tier 2 analysts',
+        memberCount: 2,
+        members: ['aisha.patel', 'clara.oswald'],
+      },
+      {
+        id: 'grp_finance_execs',
+        name: 'Executive & Finance Operations',
+        description: 'Financial controllers and senior leadership',
+        memberCount: 1,
+        members: ['marcus.vance'],
+      },
+    ];
   }
 
   // STA Mock Operations
-  public handleMockRequest(method: string, path: string, body?: any): { status: number; body: any } {
+  public handleMockRequest(method: string, path: string, body?: any, query?: any): { status: number; body: any } {
     // Check if simulate upstream failure is active
     if (this.config.simulateUpstreamFailure === 'maintenance_503') {
       return {
@@ -201,13 +226,30 @@ class StaStore {
     // Clean path (remove /api/v1 or /proxy/api/v1 prefixes)
     const normalized = path.replace(/^\/proxy/, '');
 
-    // 1. GET /api/v1/users
+    // 1. GET /api/v1/users (with query filters: status, search, limit, offset)
     if (method === 'GET' && normalized === '/api/v1/users') {
+      let filtered = [...this.users];
+      if (query?.status) {
+        filtered = filtered.filter(u => u.status.toLowerCase() === String(query.status).toLowerCase());
+      }
+      if (query?.search) {
+        const s = String(query.search).toLowerCase();
+        filtered = filtered.filter(u =>
+          u.username.toLowerCase().includes(s) ||
+          u.email.toLowerCase().includes(s) ||
+          u.firstName.toLowerCase().includes(s) ||
+          u.lastName.toLowerCase().includes(s)
+        );
+      }
+      const limit = query?.limit ? parseInt(String(query.limit), 10) : filtered.length;
+      const offset = query?.offset ? parseInt(String(query.offset), 10) : 0;
+      const paged = filtered.slice(offset, offset + limit);
+
       return {
         status: 200,
         body: {
-          totalCount: this.users.length,
-          users: this.users.map(u => ({
+          totalCount: filtered.length,
+          users: paged.map(u => ({
             id: u.id,
             username: u.username,
             email: u.email,
@@ -384,6 +426,29 @@ class StaStore {
       };
     }
 
+    // Unlock token: POST /api/v1/users/:userId/tokens/:tokenId/unlock
+    const unlockTokenMatch = normalized.match(/^\/api\/v1\/users\/([^/]+)\/tokens\/([^/]+)\/unlock$/);
+    if (unlockTokenMatch && method === 'POST') {
+      const [, userId, tokenId] = unlockTokenMatch;
+      const user = this.users.find(u => u.id === userId || u.username === userId);
+      if (!user) {
+        return { status: 404, body: { error: 'Not Found', message: `User '${userId}' not found.` } };
+      }
+      const tok = user.authenticators.find(t => t.id === tokenId);
+      if (!tok) {
+        return { status: 404, body: { error: 'Not Found', message: `Token '${tokenId}' not assigned to user.` } };
+      }
+      tok.status = 'ACTIVE';
+      return {
+        status: 200,
+        body: {
+          status: 'SUCCESS',
+          message: `Token '${tokenId}' (${tok.type}) unlocked successfully. PIN lockout counter reset to zero.`,
+          token: tok,
+        },
+      };
+    }
+
     // Single user: GET /api/v1/users/:userId
     const singleUserMatch = normalized.match(/^\/api\/v1\/users\/([^/]+)$/);
     if (singleUserMatch) {
@@ -476,7 +541,62 @@ class StaStore {
       }
     }
 
-    // 6. Logs: /api/v1/logs
+    // 6. Groups: /api/v1/groups
+    if (normalized === '/api/v1/groups') {
+      if (method === 'GET') {
+        return {
+          status: 200,
+          body: {
+            totalCount: this.groups.length,
+            groups: this.groups.map(g => ({
+              id: g.id,
+              name: g.name,
+              description: g.description,
+              memberCount: g.members.length,
+            })),
+          },
+        };
+      }
+    }
+
+    const singleGroupMatch = normalized.match(/^\/api\/v1\/groups\/([^/]+)$/);
+    if (singleGroupMatch) {
+      const groupId = singleGroupMatch[1];
+      const group = this.groups.find(g => g.id === groupId);
+      if (!group) {
+        return { status: 404, body: { error: 'Not Found', message: `Group '${groupId}' not found.` } };
+      }
+      if (method === 'GET') {
+        return { status: 200, body: group };
+      }
+    }
+
+    const groupMembersMatch = normalized.match(/^\/api\/v1\/groups\/([^/]+)\/members$/);
+    if (groupMembersMatch && method === 'POST') {
+      const groupId = groupMembersMatch[1];
+      const group = this.groups.find(g => g.id === groupId);
+      if (!group) {
+        return { status: 404, body: { error: 'Not Found', message: `Group '${groupId}' not found.` } };
+      }
+      const username = body?.username;
+      if (!username) {
+        return { status: 400, body: { error: 'Bad Request', message: 'Username is required.' } };
+      }
+      if (!group.members.includes(username)) {
+        group.members.push(username);
+        group.memberCount = group.members.length;
+      }
+      return {
+        status: 200,
+        body: {
+          status: 'SUCCESS',
+          message: `User '${username}' added to group '${group.name}'.`,
+          group,
+        },
+      };
+    }
+
+    // 7. Logs: /api/v1/logs
     if (normalized === '/api/v1/logs' && method === 'GET') {
       return {
         status: 200,
@@ -508,9 +628,11 @@ class StaStore {
       lockedCount: this.users.filter(u => u.status === 'LOCKED').length,
       appCount: this.applications.length,
       policyCount: this.policies.length,
+      groupCount: this.groups.length,
       rawUsers: this.users,
       rawApps: this.applications,
       rawPolicies: this.policies,
+      rawGroups: this.groups,
     };
   }
 }

@@ -22,6 +22,7 @@ export function generateOpenApiSpec(roleFilter?: string, reqHost?: string) {
     { name: 'Authenticators', description: 'MobilePASS+, Push OTP, Hardware tokens and FIDO2 authenticators' },
     { name: 'Applications', description: 'SSO application integrations (SAML 2.0, OIDC, agent-based)' },
     { name: 'Policies', description: 'Contextual conditional access rules and step-up MFA requirements' },
+    { name: 'Groups', description: 'User groups and access entitlement memberships' },
     { name: 'Audit', description: 'Raw tenant access logs and authentication activity stream' },
   ];
 
@@ -261,6 +262,24 @@ function getSampleRequestBodySchema(rule: RbacRule) {
       },
     };
   }
+  if (rule.id === 'rule_tokens_unlock') {
+    return {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', example: 'Helpdesk ticket INC-88210: PIN lockout reset verified' },
+      },
+    };
+  }
+  if (rule.id === 'rule_groups_manage') {
+    return {
+      type: 'object',
+      required: ['username'],
+      properties: {
+        username: { type: 'string', example: 'elena.rostova' },
+        action: { type: 'string', enum: ['ADD', 'REMOVE'], example: 'ADD' },
+      },
+    };
+  }
   if (rule.id === 'rule_apps_create') {
     return {
       type: 'object',
@@ -351,6 +370,26 @@ function getSampleResponseSchema(rule: RbacRule) {
           },
         },
         activationUrl: { type: 'string', example: 'https://sta.safenetid.com/enroll/act_991823' },
+      },
+    };
+  }
+  if (rule.category === 'Groups') {
+    return {
+      type: 'object',
+      properties: {
+        totalCount: { type: 'number', example: 3 },
+        groups: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', example: 'grp_engineering' },
+              name: { type: 'string', example: 'Engineering & DevOps' },
+              description: { type: 'string', example: 'Core software engineering team' },
+              memberCount: { type: 'number', example: 3 },
+            },
+          },
+        },
       },
     };
   }

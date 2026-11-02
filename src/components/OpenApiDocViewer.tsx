@@ -364,7 +364,7 @@ export const OpenApiDocViewer: React.FC<OpenApiDocViewerProps> = ({
               <input
                 type="text"
                 placeholder="Filter by endpoint, summary or scope..."
-                value={searchQuery}
+                value={searchQuery ?? ''}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white pl-9 pr-3 py-1.5 focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
               />

@@ -97,12 +97,14 @@ ROLES_PERMISSIONS_DB: Dict[str, List[str]] = {
         "sta:users:reset-password",
         "sta:tokens:read",
         "sta:tokens:assign",
-        "sta:tokens:revoke"
+        "sta:tokens:revoke",
+        "sta:tokens:unlock"
     ],
     "hr-onboarding-service": [
         "sta:users:read",
         "sta:users:create",
-        "sta:users:update"
+        "sta:users:update",
+        "sta:groups:read"
     ],
     "app-integrator": [
         "sta:applications:read",
@@ -133,6 +135,7 @@ ENDPOINT_RULES = [
     {"method": "GET", "pattern": r"^/api/v1/users/[^/]+/tokens$", "perm": "sta:tokens:read", "action": "tokens.list"},
     {"method": "POST", "pattern": r"^/api/v1/users/[^/]+/tokens$", "perm": "sta:tokens:assign", "action": "tokens.assign"},
     {"method": "DELETE", "pattern": r"^/api/v1/users/[^/]+/tokens/[^/]+$", "perm": "sta:tokens:revoke", "action": "tokens.revoke"},
+    {"method": "POST", "pattern": r"^/api/v1/users/[^/]+/tokens/[^/]+/unlock$", "perm": "sta:tokens:unlock", "action": "tokens.unlock"},
 
     # Applications
     {"method": "GET", "pattern": r"^/api/v1/applications(/[^/]+)?$", "perm": "sta:applications:read", "action": "applications.read"},
@@ -143,6 +146,10 @@ ENDPOINT_RULES = [
     {"method": "GET", "pattern": r"^/api/v1/policies(/[^/]+)?$", "perm": "sta:policies:read", "action": "policies.read"},
     {"method": "POST", "pattern": r"^/api/v1/policies$", "perm": "sta:policies:create", "action": "policies.create"},
     {"method": "DELETE", "pattern": r"^/api/v1/policies/[^/]+$", "perm": "sta:policies:delete", "action": "policies.delete"},
+
+    # Groups
+    {"method": "GET", "pattern": r"^/api/v1/groups(/[^/]+)?$", "perm": "sta:groups:read", "action": "groups.read"},
+    {"method": "POST", "pattern": r"^/api/v1/groups/[^/]+/members$", "perm": "sta:groups:manage", "action": "groups.manage"},
 
     # Audit
     {"method": "GET", "pattern": r"^/api/v1/logs$", "perm": "sta:audit:read", "action": "audit.read"}
@@ -526,8 +533,8 @@ var (
 
 	// Service Accounts store
 	serviceAccounts = map[string][]string{
-		"sta_proxy_sk_helpdesk_7a9c2b81": {"sta:users:read", "sta:users:unlock", "sta:users:reset-password", "sta:tokens:read", "sta:tokens:assign", "sta:tokens:revoke"},
-		"sta_proxy_sk_hrsync_5e2d1a49":   {"sta:users:read", "sta:users:create", "sta:users:update"},
+		"sta_proxy_sk_helpdesk_7a9c2b81": {"sta:users:read", "sta:users:unlock", "sta:users:reset-password", "sta:tokens:read", "sta:tokens:assign", "sta:tokens:revoke", "sta:tokens:unlock"},
+		"sta_proxy_sk_hrsync_5e2d1a49":   {"sta:users:read", "sta:users:create", "sta:users:update", "sta:groups:read"},
 		"sta_proxy_sk_splunk_99f43c12":   {"sta:audit:read", "sta:policies:read", "sta:users:read"},
 	}
 
@@ -705,8 +712,17 @@ func resolvePermission(method, path string) (string, string) {
 	if method == "POST" && regexp.MustCompile(\`^/api/v1/users/[^/]+/tokens$\`).MatchString(path) {
 		return "sta:tokens:assign", "tokens.assign"
 	}
+	if method == "POST" && regexp.MustCompile(\`^/api/v1/users/[^/]+/tokens/[^/]+/unlock$\`).MatchString(path) {
+		return "sta:tokens:unlock", "tokens.unlock"
+	}
 	if method == "DELETE" && regexp.MustCompile(\`^/api/v1/policies/[^/]+$\`).MatchString(path) {
 		return "sta:policies:delete", "policies.delete"
+	}
+	if method == "GET" && regexp.MustCompile(\`^/api/v1/groups(/[^/]+)?$\`).MatchString(path) {
+		return "sta:groups:read", "groups.read"
+	}
+	if method == "POST" && regexp.MustCompile(\`^/api/v1/groups/[^/]+/members$\`).MatchString(path) {
+		return "sta:groups:manage", "groups.manage"
 	}
 	if method == "GET" && path == "/api/v1/logs" {
 		return "sta:audit:read", "audit.read"

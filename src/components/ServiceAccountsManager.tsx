@@ -524,7 +524,7 @@ unlockUser();
                   type="text"
                   required
                   placeholder="e.g. Jira Service Management Integration"
-                  value={saName}
+                  value={saName ?? ''}
                   onChange={e => setSaName(e.target.value)}
                   className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
                 />
@@ -537,7 +537,7 @@ unlockUser();
                 <input
                   type="text"
                   placeholder="e.g. Production microservice automating account unlock requests"
-                  value={saDesc}
+                  value={saDesc ?? ''}
                   onChange={e => setSaDesc(e.target.value)}
                   className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
                 />

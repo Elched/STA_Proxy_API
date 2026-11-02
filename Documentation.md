@@ -1,7 +1,9 @@
 # Thales SafeNet Trusted Access (STA) Granular API Proxy
 ## Comprehensive Technical Architecture, Operations & Maintenance Manual
 
-> **Document Status**: Production Standard (2026 LTS Baseline)  
+> **NOTE**: This project has been coded with AI as a proof of concept. Do NOT use in production as is. No security review or formal validation has been performed on the code. Functionality is not guaranteed. Do not expose the application over the internet without enterprise review, hardening, and penetration testing.
+> 
+> **Document Status**: Engineering Proof-of-Concept & Architectural Blueprint  
 > **Target Audience**: Security Architects, DevOps/SRE Engineers, SecOps Analysts, and Enterprise Integration Developers.  
 > **Related Documents**: [`README.md`](./README.md) (Quickstart & high-level overview).
 

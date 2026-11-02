@@ -196,7 +196,7 @@ export const UpstreamStaConfigView: React.FC<UpstreamStaConfigProps> = ({ onConf
               </label>
               <input
                 type="text"
-                value={tenantId}
+                value={tenantId ?? ''}
                 onChange={e => setTenantId(e.target.value)}
                 placeholder="e.g. STA-CORP-PRODUCTION-EU"
                 className="w-full text-xs font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
@@ -210,7 +210,7 @@ export const UpstreamStaConfigView: React.FC<UpstreamStaConfigProps> = ({ onConf
               </label>
               <input
                 type="text"
-                value={apiBaseUrl}
+                value={apiBaseUrl ?? ''}
                 onChange={e => setApiBaseUrl(e.target.value)}
                 placeholder="https://api.safenetid.com"
                 className="w-full text-xs font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
@@ -228,7 +228,7 @@ export const UpstreamStaConfigView: React.FC<UpstreamStaConfigProps> = ({ onConf
               <div className="relative">
                 <input
                   type={showMasterKey ? 'text' : 'password'}
-                  value={masterApiKey}
+                  value={masterApiKey ?? ''}
                   onChange={e => setMasterApiKey(e.target.value)}
                   placeholder="Paste tenant-level master STA secret key..."
                   className="w-full text-xs font-mono rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 pl-3 pr-10 py-2 text-slate-900 dark:text-white"

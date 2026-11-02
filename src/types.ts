@@ -12,7 +12,7 @@ export interface AuditLogEntry {
   authSuccess: boolean;
   authFailureReason: string | null;
   action: string;
-  actionCategory: 'Users' | 'Authenticators' | 'Applications' | 'Policies' | 'Groups' | 'Audit' | 'System';
+  actionCategory: 'Users' | 'Authenticators' | 'Applications' | 'Policies' | 'Groups' | 'Audit' | 'System' | 'Accounts';
   httpMethod: string;
   endpoint: string;
   actionStatus: ActionStatus;
@@ -32,7 +32,7 @@ export interface RbacRule {
   httpMethod: string;
   pathPattern: string;
   requiredPermission: string;
-  category: 'Users' | 'Authenticators' | 'Applications' | 'Policies' | 'Groups' | 'Audit' | 'System';
+  category: 'Users' | 'Authenticators' | 'Applications' | 'Policies' | 'Groups' | 'Audit' | 'System' | 'Accounts';
 }
 
 export interface RbacRole {
