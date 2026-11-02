@@ -1,5 +1,9 @@
 # Thales SafeNet Trusted Access (STA) Granular API Proxy
 
+note: this project has been coded with AI as a proof of concept
+do NOT use in production as is. Nonsecurity validation has been performed.
+functionality is not guaranteed either.
+
 > **Zero-Trust Granular RBAC and Security Audit Gateway for Thales SafeNet Trusted Access (STA) REST APIs**  
 > 📖 **Deep Technical Architecture & Maintenance Guide**: For in-depth architectural internals, cryptographic models, production maintenance runbooks, upgrade procedures, and enterprise integration patterns, see [**Documentation.md**](./Documentation.md).
 
